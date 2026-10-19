@@ -151,6 +151,9 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
+*.pem
 .envrc
 .venv
 env/
@@ -218,3 +221,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# IDE settings
+.idea/
+.vscode/settings.json
+
+# Local databases and application state
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Operating system files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,9 @@
+crewai
+langgraph
+langchain
+langchain-openai
+pandas
+pydantic
+pytest
+python-dotenv
+mcp
