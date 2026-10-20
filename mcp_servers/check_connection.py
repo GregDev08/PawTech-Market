@@ -20,11 +20,21 @@ async def main() -> None:
             print("Conexion MCP inicializada.")
 
             tools = await session.list_tools()
-            print("Herramientas:", [tool.name for tool in tools.tools])
+            tool_names = [tool.name for tool in tools.tools]
+            print("Herramientas:", tool_names)
+
+            if "analyze_numeric_data" not in tool_names:
+                raise RuntimeError("No se encontró analyze_numeric_data.")
 
             result = await session.call_tool(
-                "server_status",
-                arguments={},
+                "analyze_numeric_data",
+                arguments={
+                    "rows": [
+                        {"ventas": 10},
+                        {"ventas": 20},
+                        {"ventas": 30},
+                    ]
+                },
             )
 
             if result.isError:
@@ -32,7 +42,7 @@ async def main() -> None:
 
             for content in result.content:
                 if content.type == "text":
-                    print("Respuesta:", content.text)
+                    print("Resultado del análisis:", content.text)
 
 
 if __name__ == "__main__":
