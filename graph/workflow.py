@@ -17,7 +17,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from agents.schemas import IntermediateValidation, MarketReportSchema, PlanProposal
-from graph import runner
+from graph import mcp_client, runner
 from graph.schemas import ResearchFindings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -289,7 +289,7 @@ def execute_hito(state: StudyState) -> dict:
     approved = [t for t in state["proposals"][hito] if t["id"] in state["approved_ids"]]
     _emit({"event": "phase", "hito": hito, "phase": "executing",
            "message": f"Los agentes están ejecutando {len(approved)} subtarea(s) del Hito {hito}…"})
-    executors = {1: _execute_hito_1}  # los Hitos 2 y 3 se añaden en los siguientes pasos
+    executors = {1: _execute_hito_1, 2: _execute_hito_2}  # el Hito 3 se añade en el siguiente paso
     if hito not in executors:
         raise NotImplementedError(f"El Hito {hito} todavía no está implementado.")
     return executors[hito](state, approved)
@@ -343,6 +343,73 @@ def _execute_hito_1(state: StudyState, approved: list[dict]) -> dict:
         "subtasks": done,
     }
     return {"research": research, "hito_results": _store_result(state, 1, result)}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Hito 2: validación cuantitativa (MCP) y visual
+# ──────────────────────────────────────────────────────────────────────────────
+def _price_rows(state: StudyState) -> list[dict[str, float]]:
+    """Preparo las filas para la herramienta de Luis a partir de lo aprobado en el Hito 1.
+
+    Uso el €/kg (no el precio total) porque es lo único comparable entre sacos de
+    distinto tamaño. Su herramienta exige que todas las filas tengan las mismas
+    columnas y números finitos, así que solo meto los productos que tienen €/kg.
+    """
+    competitors = (state.get("research") or {}).get("competitors", [])
+    return [{"precio_eur_kg": float(c["price_per_kg"])} for c in competitors if c.get("price_per_kg")]
+
+
+def _execute_hito_2(state: StudyState, approved: list[dict]) -> dict:
+    """Hito 2: las cifras las calcula la herramienta MCP; los agentes solo las interpretan."""
+    rows = _price_rows(state)
+    wants_quant = any(t["category"] == "Análisis Cuantitativo" for t in approved)
+
+    # 1) Estadísticas con la herramienta de Luis. Las calculo UNA vez, antes de los agentes,
+    #    para que todos trabajen con las mismas cifras y ninguno se invente una media.
+    if wants_quant and rows:
+        _emit({"event": "phase", "hito": 2, "phase": "executing",
+               "message": f"Calculando estadísticas de {len(rows)} precios €/kg con la herramienta MCP…"})
+        stats = mcp_client.analyze_numeric_data(rows)
+    elif wants_quant:
+        stats = {"aviso": "El Hito 1 no aportó precios por kg: no hay datos que analizar."}
+    else:
+        stats = {"aviso": "No se aprobó ninguna subtarea cuantitativa."}
+
+    # 2) Cada subtarea aprobada va a su agente, con el contexto que necesita
+    done = []
+    for t in approved:
+        if t["category"] == "Análisis Cuantitativo":
+            # Le paso las estadísticas ya calculadas y le prohíbo calcular otras
+            extra = ("\n\nEstadísticas de €/kg calculadas por la herramienta MCP (son la ÚNICA "
+                     f"fuente válida de cifras, no calcules otras):\n{json.dumps(stats, ensure_ascii=False)}"
+                     "\n\nInterprétalas para esta subtarea: qué marcas quedan por encima o por "
+                     "debajo de la media, cuánta dispersión hay y si se ven huecos de precio.")
+            done.append(_run_subtask(2, t, _subtask_prompt(state, 2, t, "execute_data_analysis", extra),
+                                     "Interpretación cuantitativa basada solo en las estadísticas dadas."))
+        else:
+            # Todavía no adjuntamos imágenes: el visual trabaja con lo que se sabe del producto
+            extra = ("\n\nNo se han adjuntado imágenes: basa el análisis en los nombres de producto y "
+                     "lo que dicen los hallazgos (claims como 'grain-free' o 'sterilised', formatos, "
+                     "posicionamiento) y señala qué habría que comprobar viendo el packaging real.")
+            done.append(_run_subtask(2, t, _subtask_prompt(state, 2, t, "execute_visual_analysis", extra),
+                                     "Hallazgos visuales y de packaging."))
+
+    if not any(t["status"] == "completed" for t in done):
+        raise RuntimeError("Todas las subtareas del Hito 2 fallaron.")
+
+    # 3) Junto todo en el esquema de Vanesa para la pausa de validación
+    quant_text = "\n\n".join(t["output"] for t in done
+                             if t["category"] == "Análisis Cuantitativo" and t["status"] == "completed")
+    visual_text = "\n\n".join(t["output"] for t in done
+                              if t["category"] == "Análisis Visual" and t["status"] == "completed")
+    validation = IntermediateValidation(
+        quantitative_summary={"estadisticas": stats, "interpretacion": quant_text or None},
+        visual_findings=visual_text or "No se aprobaron (o fallaron) las subtareas de análisis visual.",
+        sources_found=(state.get("research") or {}).get("sources", []),
+    ).model_dump()
+
+    result = {"kind": "validation", **validation, "price_rows": len(rows), "subtasks": done}
+    return {"validation": validation, "hito_results": _store_result(state, 2, result)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
