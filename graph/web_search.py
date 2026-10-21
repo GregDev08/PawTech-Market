@@ -9,9 +9,10 @@ import re
 from crewai.tools import tool
 from openai import OpenAI
 
-#SEARCH_MODEL = "openai/gpt-oss-120b" 
-SEARCH_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b") 
- # browser_search solo funciona con los gpt-oss # browser_search solo funciona con los gpt-oss
+# browser_search solo funciona con los gpt-oss, así que la búsqueda tiene su propia variable
+# (si LLM_MODEL fuera Qwen, la búsqueda seguiría funcionando). Por defecto el 20b, que tiene
+# su propio cupo diario en Groq y así no compite con el 120b de los agentes.
+SEARCH_MODEL = os.getenv("SEARCH_MODEL", "openai/gpt-oss-20b")
 MAX_CHARS = 3000                      # tope para no reventar el límite de tokens de Groq
 _client = None
 

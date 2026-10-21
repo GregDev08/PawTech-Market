@@ -1,8 +1,12 @@
 """LLM de la squad: Groq a través de su endpoint compatible con OpenAI.
 
-Variables del .env:
-    GROQ_API_KEY=...                     (obligatoria)
-    LLM_MODEL=openai/gpt-oss-120b        (opcional)
+Variables del .env (ver .env.example):
+    GROQ_API_KEY=...                        obligatoria
+    LLM_MODEL=openai/gpt-oss-120b           opcional (también openai/gpt-oss-20b o qwen/qwen3.8-27b)
+    VISION_LLM_MODEL=qwen/qwen3.8-27b       opcional, para el analista visual
+
+Los agentes de agents/crew_agents.py se crean con su LLM por defecto y graph/runner.py
+les asigna este, así no hace falta tocar el archivo de los agentes.
 """
 import os
 
@@ -13,13 +17,8 @@ TEXT_MODEL = "openai/gpt-oss-120b"
 VISION_MODEL = "qwen/qwen3.8-27b"
 
 
-def build_llm(kind: str = "text", web_search: bool = False) -> LLM:
-    """Devuelve el LLM de Groq.
-
-    kind='vision'   → modelo que entiende imágenes.
-    web_search=True → activa browser_search, la búsqueda web nativa de Groq
-                      (solo funciona con los modelos gpt-oss).
-    """
+def build_llm(kind: str = "text") -> LLM:
+    """Devuelve el LLM de Groq. kind='vision' usa el modelo que entiende imágenes."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("Falta GROQ_API_KEY en el .env")
@@ -30,11 +29,9 @@ def build_llm(kind: str = "text", web_search: bool = False) -> LLM:
         model = os.getenv("LLM_MODEL", TEXT_MODEL)
 
     extra = {}
-    if web_search:
-        extra = {
-            "tools": [{"type": "browser_search"}],
-            "reasoning_effort": "low",  # Groq lo recomienda: si no, busca de más y gasta muchos tokens
-        }
+    if model.startswith("qwen/"):
+        # Qwen "piensa en voz alta" por defecto: lo ocultamos para que no rompa el JSON
+        extra["extra_body"] = {"reasoning_format": "hidden"}
 
     return LLM(
         model=f"openai/{model}",

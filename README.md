@@ -9,9 +9,9 @@ nutrición inteligente para mascotas. El equipo está preparando la estructura
 inicial de un sistema multi-agente con CrewAI, LangGraph y MCP. La interfaz de
 usuario se desarrollará en una etapa posterior.
 
-> **Estado actual:** repositorio en fase de setup. Las carpetas son espacios de
-> trabajo iniciales; los agentes, el grafo, las herramientas, los servidores MCP
-> y la UI todavía no están implementados.
+> **Estado actual:** el flujo multi-agente funciona de extremo a extremo: agentes
+> CrewAI, orquestación LangGraph en 3 hitos con Human-in-the-Loop, análisis
+> cuantitativo vía MCP e interfaz Streamlit conectada en vivo por WebSocket.
 
 ## Estructura inicial
 
@@ -86,14 +86,66 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-## Pruebas iniciales
+## Ejecutar el sistema
+
+1. Crea el `.env` (ver arriba) con tu `GROQ_API_KEY`.
+2. Arranca el servidor WebSocket y la interfaz:
+
+```powershell
+# Windows
+.\start.ps1            # con Groq
+.\start.ps1 -Fake      # modo simulado, sin gastar tokens
+```
+
+```bash
+# macOS / Linux
+./start.sh
+FAKE_LLM=1 ./start.sh   # modo simulado
+```
+
+O a mano, en dos terminales: `python ui/server.py` y `streamlit run ui/app.py`.
+
+Para recorrer el flujo sin interfaz, haciendo tú de usuario en la terminal:
+
+```bash
+python scripts/probar_hitos.py
+```
+
+### Cómo funciona el flujo
+
+Cada hito sigue el mismo ciclo, con dos pausas Human-in-the-Loop:
+
+```text
+planificar ──► aprobar subtareas ──► ejecutar ──► revisar resultado
+                  (pausa)                            (pausa)
+                                                      ├─ rehacer (con comentario, máx. 3 intentos)
+                                                      └─ aprobar → siguiente hito
+```
+
+| Hito | Agentes | Resultado |
+| --- | --- | --- |
+| 1. Planificación e investigación | Investigador (búsqueda web de Groq) | Productos con precio, tamaño y €/kg |
+| 2. Validación cuantitativa y visual | Analista de datos + analista visual | Estadísticas €/kg vía la herramienta MCP |
+| 3. Informe y automatización | Redactor estratégico + revisor crítico | Informe auditado, exportado a `outputs/` |
+
+Las cifras (€/kg, estadísticas, resumen de precios) las calcula el código, no el
+LLM, y el informe incluye un registro de las decisiones humanas de cada pausa.
+
+### Modo simulado
+
+Con `FAKE_LLM=1` los agentes devuelven respuestas de ejemplo (`graph/fake_llm.py`)
+sin llamar a Groq: sirve para desarrollar la interfaz, hacer demos y lanzar los
+tests. El plan gratuito de Groq tiene un límite diario de tokens por modelo.
+
+## Pruebas
 
 ```bash
 pytest
 ```
 
-Las pruebas actuales solo comprueban importaciones de dependencias base y la
-presencia de `.env.example`. Se ampliarán al incorporar funcionalidad.
+Los tests del grafo corren en modo simulado: no necesitan `.env` ni gastan tokens.
+Cubren los esquemas y cálculos, los 3 hitos, las pausas HITL, el límite de
+intentos, la sesión de la interfaz y la conexión con el servidor MCP.
 
 ## Flujo Git
 
