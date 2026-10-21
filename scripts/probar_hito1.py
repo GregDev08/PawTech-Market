@@ -53,9 +53,14 @@ def main():
             print(f"\n⏸  HITO {pause['hito']} — intento {pause['attempt']} de {pause['max_attempts']}"
                   f"\n{r['summary']}\n")
             for c in r["competitors"]:
-                print(f"  - {c['name']} | {c['product']} | {c.get('price_eur')} € | "
-                      f"{c.get('size_kg')} kg | {c.get('price_per_kg')} €/kg | {c.get('source')}")
-            print(f"\nPrecios comparables (€/kg): {r['comparable_prices']}")
+                print(f"  - {c['brand']} | {c['product']} | {c.get('store')} | {c.get('price_eur')} € | "
+                      f"{c.get('size_kg')} kg | {c.get('price_per_kg')} €/kg")
+            print(f"\nPrecios comparables (€/kg): {r['comparable_prices']}"
+                  f" · duplicados quitados: {r['duplicates_removed']}")
+            if r["cheapest"]:
+                c = r["cheapest"]
+                print(f"Más barato por kg (calculado): {c['brand']} {c['product']} "
+                      f"en {c.get('store')} → {c['price_per_kg']} €/kg")
             for t in r["subtasks"]:
                 if t["status"] == "failed":
                     print(f"  ✗ {t['id']} falló: {t['error']}")
@@ -73,3 +78,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    

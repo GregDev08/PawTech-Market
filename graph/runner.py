@@ -1,6 +1,7 @@
 """Ejecución de una tarea CrewAI con un solo agente.
 
 Es el único punto donde la orquestación toca CrewAI.
+Con FAKE_LLM=1 devuelve respuestas simuladas (graph/fake_llm.py) sin llamar a Groq.
 """
 import json
 import os
@@ -88,6 +89,10 @@ def run_agent_task(
     on_step: Optional[Callable[[], None]] = None,
 ) -> RunResult:
     """Ejecuta una tarea con un agente. Si se pasa output_pydantic, exige ese JSON."""
+    if os.getenv("FAKE_LLM") == "1":  # modo simulado: sin Groq, sin gastar tokens
+        from graph.fake_llm import fake_result
+        return fake_result(agent_key, description, output_pydantic, on_step)
+
     if output_pydantic is None:
         return RunResult(raw=_kickoff(agent_key, description, expected_output, on_step))
 

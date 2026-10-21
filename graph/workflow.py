@@ -145,8 +145,8 @@ def _context_for(state: StudyState, hito: int) -> str:
                 price = f"{c['price_eur']} €" if c.get("price_eur") is not None else "precio s/d"
                 size = f"{c['size_kg']} kg" if c.get("size_kg") else "tamaño s/d"
                 per_kg = f"{c['price_per_kg']} €/kg" if c.get("price_per_kg") else "€/kg s/d"
-                lines.append(f"- {c['name']} | {c['product']} | {price} | {size} | {per_kg} | "
-                             f"{c.get('source') or 'sin fuente'}")
+                lines.append(f"- {c['brand']} | {c['product']} | {c.get('store') or 'tienda s/d'} | "
+                             f"{price} | {size} | {per_kg} | {c.get('source') or 'sin fuente'}")
             parts.append("Competidores identificados:\n" + "\n".join(lines))
     if hito >= 3 and state.get("validation"):
         parts.append("Validación del Hito 2:\n"
@@ -253,6 +253,27 @@ def _subtask_prompt(state: StudyState, hito: int, task: dict, base_task_key: str
     )
 
 
+def _dedupe_competitors(competitors: list[dict]) -> list[dict]:
+    """Quita productos repetidos (misma marca, producto y tamaño en varias tiendas).
+
+    Se queda con la oferta más barata en €/kg, para que un producto no cuente
+    dos veces en las estadísticas del Hito 2.
+    """
+    best: dict[tuple, dict] = {}
+    for c in competitors:
+        key = (c["brand"].strip().lower(), c["product"].strip().lower(), c.get("size_kg"))
+        current = best.get(key)
+        if current is None or (c.get("price_per_kg") or float("inf")) < (current.get("price_per_kg") or float("inf")):
+            best[key] = c
+    return list(best.values())
+
+
+def _cheapest(competitors: list[dict]) -> Optional[dict]:
+    """El producto más barato en €/kg, calculado por nosotros (no por el LLM)."""
+    priced = [c for c in competitors if c.get("price_per_kg")]
+    return min(priced, key=lambda c: c["price_per_kg"]) if priced else None
+
+
 def _store_result(state: StudyState, hito: int, result: dict) -> dict:
     """Guarda lo que verá el usuario al revisar el hito, sin borrar los de otros hitos."""
     results = dict(state.get("hito_results") or {})
@@ -298,8 +319,10 @@ def _execute_hito_1(state: StudyState, approved: list[dict]) -> dict:
         "market_researcher",
         f"Solicitud del usuario: {state['query']}\n\nNotas de investigación:\n{notes}\n\n"
         "Consolida estas notas en un ResearchFindings. NO busques en la web: usa solo las notas. "
-        "En 'competitors' incluye solo competidores mencionados en las notas; 'price_eur' y "
-        "'size_kg' solo si aparecen en las notas (si no, null). No inventes precios ni fuentes."
+        "En 'competitors' incluye una entrada por producto mencionado en las notas: en 'brand' la "
+        "MARCA del producto y en 'store' la tienda donde se vio. 'price_eur' y 'size_kg' solo si "
+        "aparecen en las notas (si no, null). No inventes precios ni fuentes. En 'summary' no "
+        "escribas cálculos de €/kg ni rankings de precio: los calculamos aparte."
         f"{_feedback_block(state)}\n\n"
         "Responde en español.",
         "Un objeto ResearchFindings.",
@@ -307,12 +330,16 @@ def _execute_hito_1(state: StudyState, approved: list[dict]) -> dict:
     ).pydantic
 
     research = consolidated.model_dump()  # incluye price_per_kg calculado
+    found = len(research["competitors"])
+    research["competitors"] = _dedupe_competitors(research["competitors"])
     result = {
         "kind": "research",
         "summary": research["summary"],
         "competitors": research["competitors"],
         "sources": research["sources"],
         "comparable_prices": sum(1 for c in research["competitors"] if c.get("price_per_kg")),
+        "duplicates_removed": found - len(research["competitors"]),
+        "cheapest": _cheapest(research["competitors"]),
         "subtasks": done,
     }
     return {"research": research, "hito_results": _store_result(state, 1, result)}

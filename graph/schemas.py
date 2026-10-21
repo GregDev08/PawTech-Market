@@ -9,14 +9,15 @@ from pydantic import BaseModel, Field, computed_field
 
 
 class CompetitorEntry(BaseModel):
-    """Un competidor encontrado en la investigación web."""
-    name: str = Field(..., description="Marca competidora")
-    product: str = Field(..., description="Producto concreto analizado")
+    """Un producto competidor encontrado en la investigación web."""
+    brand: str = Field(..., description="Marca del producto (p. ej. 'Orijen', 'Salvaje'), NO la tienda")
+    product: str = Field(..., description="Nombre concreto del producto")
+    store: Optional[str] = Field(None, description="Tienda o comparador donde se vio el precio (p. ej. 'Tiendanimal')")
     price_eur: Optional[float] = Field(
         None, description="Precio total del producto en euros; null si no se conoce"
     )
     size_kg: Optional[float] = Field(
-        None, description="Peso del saco/envase en kg (p. ej. 2, 6, 11.4, 12); null si no se conoce"
+        None, description="Peso del saco/envase en kg (p. ej. 1.5, 7, 12); null si no se conoce"
     )
     source: Optional[str] = Field(None, description="URL de donde sale el dato")
 
@@ -31,6 +32,6 @@ class CompetitorEntry(BaseModel):
 
 class ResearchFindings(BaseModel):
     """Resultado del Hito 1: lo que alimenta el análisis cuantitativo del Hito 2."""
-    summary: str = Field(..., description="Síntesis de los hallazgos de la investigación web")
+    summary: str = Field(..., description="Síntesis cualitativa de los hallazgos (sin cálculos de €/kg)")
     competitors: List[CompetitorEntry] = Field(default_factory=list)
     sources: List[str] = Field(default_factory=list, description="Fuentes citadas")
