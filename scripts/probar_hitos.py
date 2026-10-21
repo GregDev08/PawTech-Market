@@ -1,9 +1,8 @@
-"""Pruebo el flujo desde la terminal, haciendo yo de usuario: Hito 1 → Hito 2.
+"""Pruebo el flujo completo desde la terminal, haciendo yo de usuario: Hito 1 → 2 → 3.
 
 Uso (desde la raíz del proyecto):  python scripts/probar_hitos.py
 Sin gastar tokens:                 $env:FAKE_LLM="1"; python scripts/probar_hitos.py
 """
-import json
 import sys
 import uuid
 from pathlib import Path
@@ -15,8 +14,6 @@ load_dotenv()
 
 from langgraph.types import Command
 from graph.workflow import build_graph
-
-LAST_HITO = 2  # hasta dónde llega la prueba (el Hito 3 aún no está hecho)
 
 
 def run(graph, graph_input, config):
@@ -64,6 +61,19 @@ def show_validation(r):
     print(f"\nHallazgos visuales:\n{short(r['visual_findings'])}")
 
 
+def show_report(r):
+    """Resultado del Hito 3: el informe y el veredicto del revisor crítico."""
+    rep = r["report"]
+    print(f"{rep['title']}\n")
+    print(f"Resumen ejecutivo:\n{short(rep['executive_summary'], 400)}\n")
+    print(f"Distribución de precios (escrita por el código):\n{rep['price_distribution_summary']}\n")
+    print("Recomendaciones:")
+    for rec in rep["recommendations"]:
+        print(f"  - {short(rec, 200)}")
+    print(f"\nFuentes: {len(rep['sources'])} · Veredicto del revisor: {r['audit_verdict']}")
+    print("Si apruebas, autorizas la exportación del informe a outputs/.")
+
+
 def main():
     query = input("¿Qué estudio quieres? (Enter = pienso premium para perros en España): ").strip() \
         or "Estudio de mercado de pienso premium para perros en España"
@@ -87,7 +97,7 @@ def main():
         # review_hito
         hito, r = pause["hito"], pause["result"]
         print(f"\n⏸  HITO {hito} — intento {pause['attempt']} de {pause['max_attempts']}\n")
-        show_research(r) if r["kind"] == "research" else show_validation(r)
+        {"research": show_research, "validation": show_validation, "report": show_report}[r["kind"]](r)
         for t in r["subtasks"]:
             if t["status"] == "failed":
                 print(f"  ✗ {t['id']} falló: {t['error']}")
@@ -97,13 +107,15 @@ def main():
         if input("\n¿Aprobar (a) o rehacer (r)? ").strip().lower().startswith("r"):
             feedback = input("Comentario para rehacer: ")
             pause = run(graph, Command(resume={"decision": "redo", "feedback": feedback}), config)
-        elif hito < LAST_HITO:
-            print(f"\n✅ Hito {hito} aprobado. Pasamos al Hito {hito + 1}.")
-            pause = run(graph, Command(resume={"decision": "approve"}), config)
         else:
-            print(f"\n✅ Hito {hito} aprobado. Esto es lo que recibirá el Hito {hito + 1}:")
-            print(json.dumps(graph.get_state(config).values["validation"], ensure_ascii=False, indent=2))
-            return
+            print(f"\n✅ Hito {hito} aprobado." + (f" Pasamos al Hito {hito + 1}." if hito < 3 else ""))
+            pause = run(graph, Command(resume={"decision": "approve"}), config)
+
+    # Sin más pausas: el grafo ha llegado al final (finalize ya exportó el informe)
+    final = graph.get_state(config).values.get("final") or {}
+    print("\n🏁 Estudio terminado. Informe exportado en:")
+    for path in final.get("files", []):
+        print(f"   {path}")
 
 
 if __name__ == "__main__":

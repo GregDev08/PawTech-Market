@@ -7,6 +7,7 @@ Cada hito sigue el mismo ciclo:
     · aprobar hito 3   → finalize → fin
 """
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, TypedDict
 
@@ -62,6 +63,7 @@ class StudyState(TypedDict, total=False):
     validation: dict                 # IntermediateValidation del Hito 2
     report: dict                     # MarketReportSchema del Hito 3
     decision: str                    # "approve", "redo" o "redo_blocked" en la última revisión
+    human_log: list[dict]            # rastro de cada decisión humana (qué, en qué hito, cuándo)
     final: dict                      # el informe exportado al terminar
 
 
@@ -154,6 +156,19 @@ def _context_for(state: StudyState, hito: int) -> str:
     return "\n\n".join(parts)
 
 
+def _log_decision(state: StudyState, entry: dict) -> list[dict]:
+    """Apunto una decisión humana en el registro de supervisión.
+
+    En un sistema Human-in-the-Loop no basta con que haya pausas: quiero poder
+    demostrar qué decidió la persona en cada momento. Devuelvo la lista entera
+    porque en LangGraph un nodo devuelve el valor nuevo del campo, no un "añade".
+    """
+    attempt = (state.get("attempts") or {}).get(state["hito"], 1)
+    record = {"hito": state["hito"], "attempt": attempt, **entry,
+              "at": datetime.now().isoformat(timespec="seconds")}
+    return [*(state.get("human_log") or []), record]
+
+
 def _feedback_block(state: StudyState) -> str:
     """Si el usuario pidió rehacer el hito, su comentario se añade al prompt."""
     fb = (state.get("feedback") or "").strip()
@@ -202,7 +217,13 @@ def approve_subtasks(state: StudyState) -> dict:
     answer = interrupt({"type": "approve_subtasks", "hito": hito, "tasks": tasks})
     valid_ids = {t["id"] for t in tasks}
     approved = [i for i in (answer or {}).get("approved_ids", []) if i in valid_ids]
-    return {"approved_ids": approved}
+    # Apunto lo que se aprobó y lo que se descartó (con título, que es lo que entiende una persona)
+    log = _log_decision(state, {
+        "action": "approve_subtasks",
+        "approved": [t["title"] for t in tasks if t["id"] in approved],
+        "rejected": [t["title"] for t in tasks if t["id"] not in approved],
+    })
+    return {"approved_ids": approved, "human_log": log}
 
 
 def route_after_approval(state: StudyState) -> str:
@@ -289,7 +310,7 @@ def execute_hito(state: StudyState) -> dict:
     approved = [t for t in state["proposals"][hito] if t["id"] in state["approved_ids"]]
     _emit({"event": "phase", "hito": hito, "phase": "executing",
            "message": f"Los agentes están ejecutando {len(approved)} subtarea(s) del Hito {hito}…"})
-    executors = {1: _execute_hito_1, 2: _execute_hito_2}  # el Hito 3 se añade en el siguiente paso
+    executors = {1: _execute_hito_1, 2: _execute_hito_2, 3: _execute_hito_3}
     if hito not in executors:
         raise NotImplementedError(f"El Hito {hito} todavía no está implementado.")
     return executors[hito](state, approved)
@@ -413,6 +434,95 @@ def _execute_hito_2(state: StudyState, approved: list[dict]) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Hito 3: informe final y auditoría
+# ──────────────────────────────────────────────────────────────────────────────
+def _eur(value: float) -> str:
+    """Escribo los números a la española (2,08 y no 2.08), que el informe es para personas."""
+    return f"{value:.2f}".replace(".", ",")
+
+
+def _price_summary(state: StudyState) -> str:
+    """El párrafo de precios del informe lo escribo yo, con las cifras de MCP del Hito 2.
+
+    Es la regla de todo el proyecto: las cifras salen del código, no del LLM. Así el
+    revisor crítico (que según las pautas de Vanesa verifica que cada número venga del
+    código) tiene una fuente clara, y nos ahorramos errores como el de los 1,43 €/kg.
+    """
+    stats = ((state.get("validation") or {}).get("quantitative_summary") or {}).get("estadisticas") or {}
+    s = (stats.get("summary") or {}).get("precio_eur_kg")
+    if not s:
+        return "No hubo suficientes precios por kg para un resumen cuantitativo."
+    text = (f"Se analizaron {int(s['count'])} productos. Precio medio {_eur(s['mean'])} €/kg "
+            f"(mediana {_eur(s['50%'])} €/kg), con un rango de {_eur(s['min'])} a {_eur(s['max'])} €/kg")
+    if s.get("std") is not None:
+        text += f" y una desviación de {_eur(s['std'])} €/kg"
+    text += "."
+    cheapest = _cheapest((state.get("research") or {}).get("competitors", []))
+    if cheapest:
+        text += (f" El más económico es {cheapest['brand']} {cheapest['product']}"
+                 f" ({cheapest.get('store') or 'tienda s/d'}) a {_eur(cheapest['price_per_kg'])} €/kg.")
+    return text + f" Estadísticas calculadas vía {stats.get('via', 's/d')}."
+
+
+def _audit_verdict(audits: list[str]) -> str:
+    """Leo el veredicto que pido al revisor al final de su auditoría."""
+    if not audits:
+        return "SIN AUDITORÍA"
+    text = " ".join(audits).upper()
+    if "REQUIERE CAMBIOS" in text:
+        return "REQUIERE CAMBIOS"
+    return "APROBADO" if "APROBADO" in text else "SIN VEREDICTO"
+
+
+def _execute_hito_3(state: StudyState, approved: list[dict]) -> dict:
+    """Hito 3: borradores → informe consolidado (MarketReportSchema) → auditoría crítica."""
+    writers = [t for t in approved if t["category"] == "Redacción Estratégica"]
+    reviewers = [t for t in approved if t["category"] == "Revisión Crítica"]
+
+    # 1) Cada subtarea de redacción escribe un borrador de su parte del informe
+    done = [_run_subtask(3, t, _subtask_prompt(state, 3, t, "draft_final_report"),
+                         "Borrador de la sección del informe.") for t in writers]
+    drafts = "\n\n".join(f"### {t['title']}\n{_truncate(t['output'], 2500)}"
+                         for t in done if t["status"] == "completed")
+
+    # 2) El redactor consolida todo en el esquema de Vanesa. Le digo que deje en blanco
+    #    la parte de precios: esa la relleno yo con las cifras de MCP.
+    _emit({"event": "phase", "hito": 3, "phase": "executing",
+           "message": "El redactor estratégico está consolidando el informe final…"})
+    report = runner.run_agent_task(
+        "strategic_writer",
+        f"{_context_for(state, 3)}\n\n"
+        f"{TASKS_CONFIG['draft_final_report']['description'].strip()}\n\n"
+        f"Borradores aprobados:\n{drafts or '(no hay borradores: redacta a partir del contexto)'}\n\n"
+        "En 'price_distribution_summary' escribe solo 'pendiente': lo rellenamos con las "
+        "estadísticas calculadas. No escribas cifras de precio que no estén en el contexto."
+        f"{_feedback_block(state)}\n\n"
+        "Responde en español.",
+        "Un objeto MarketReportSchema completo.",
+        output_pydantic=MarketReportSchema,
+    ).pydantic.model_dump()
+
+    # Sustituyo lo que debe salir del código: el resumen de precios y las fuentes reales
+    report["price_distribution_summary"] = _price_summary(state)
+    report["sources"] = (state.get("research") or {}).get("sources", []) or report["sources"]
+
+    # 3) El revisor crítico audita el informe ya consolidado y da un veredicto
+    for t in reviewers:
+        done.append(_run_subtask(3, t, _subtask_prompt(
+            state, 3, t, "review_and_audit_report",
+            f"\n\nInforme a auditar:\n{json.dumps(report, ensure_ascii=False, indent=1)}\n\n"
+            "Comprueba que cada cifra coincide con las estadísticas del Hito 2 y que las fuentes "
+            "están citadas. Termina con una línea 'Veredicto: APROBADO' o 'Veredicto: REQUIERE "
+            "CAMBIOS', seguida de la lista de problemas si los hay."),
+            "Auditoría del informe con veredicto final."))
+
+    audits = [t["output"] for t in done if t["category"] == "Revisión Crítica" and t["status"] == "completed"]
+    result = {"kind": "report", "report": report, "audit": audits,
+              "audit_verdict": _audit_verdict(audits), "subtasks": done}
+    return {"report": report, "hito_results": _store_result(state, 3, result)}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Nodos: revisar el hito y avanzar
 # ──────────────────────────────────────────────────────────────────────────────
 def review_hito(state: StudyState) -> dict:
@@ -431,13 +541,17 @@ def review_hito(state: StudyState) -> dict:
         "can_redo": attempt < MAX_ATTEMPTS,  # la interfaz desactiva "rehacer" si es False
     })
     if (answer or {}).get("decision") == "redo":
+        feedback = (answer or {}).get("feedback", "")
         if attempt >= MAX_ATTEMPTS:
             # Límite alcanzado: no se rehace, se vuelve a preguntar (solo queda aprobar)
-            return {"decision": "redo_blocked"}
+            log = _log_decision(state, {"action": "review", "decision": "redo_blocked", "feedback": feedback})
+            return {"decision": "redo_blocked", "human_log": log}
+        log = _log_decision(state, {"action": "review", "decision": "redo", "feedback": feedback})
         attempts = dict(state.get("attempts") or {})
         attempts[hito] = attempt + 1
-        return {"decision": "redo", "feedback": (answer or {}).get("feedback", ""), "attempts": attempts}
-    return {"decision": "approve", "feedback": None}
+        return {"decision": "redo", "feedback": feedback, "attempts": attempts, "human_log": log}
+    log = _log_decision(state, {"action": "review", "decision": "approve"})
+    return {"decision": "approve", "feedback": None, "human_log": log}
 
 
 def route_after_review(state: StudyState) -> str:
@@ -456,9 +570,73 @@ def advance(state: StudyState) -> dict:
     return {"hito": state["hito"] + 1, "approved_ids": []}
 
 
+def _human_log_lines(log: list[dict]) -> list[str]:
+    """Traduzco el registro de decisiones a frases que se entiendan en el informe."""
+    lines = []
+    for e in log:
+        when = e["at"][11:16]  # solo la hora: HH:MM
+        prefix = f"- {when} · Hito {e['hito']} (intento {e['attempt']}):"
+        if e["action"] == "approve_subtasks":
+            text = f"aprobó {len(e['approved'])} subtarea(s): {', '.join(e['approved'])}"
+            if e["rejected"]:
+                text += f" · descartó {len(e['rejected'])}"
+        elif e["decision"] == "approve":
+            text = "aprobó el resultado"
+        elif e["decision"] == "redo":
+            text = f"pidió rehacer — «{e['feedback']}»" if e.get("feedback") else "pidió rehacer"
+        else:
+            text = "intentó rehacer con el límite alcanzado (bloqueado)"
+        lines.append(f"{prefix} {text}")
+    return lines
+
+
+def report_to_markdown(report: dict, audits: list[str], query: str, when: datetime,
+                       human_log: list[dict] | None = None) -> str:
+    """Convierto el informe a Markdown para que se pueda leer, compartir o pasar a PDF."""
+    md = [f"# {report['title']}", "",
+          f"*Estudio: {query} · Fecha: {when.strftime('%d/%m/%Y')} · Generado por PawTech-Market*", "",
+          "## Resumen ejecutivo", report["executive_summary"], "",
+          "## Análisis de competidores", report["competitor_analysis"], "",
+          "## Distribución de precios", report["price_distribution_summary"], "",
+          "## Insights visuales", report["visual_insights"], "",
+          "## Recomendaciones"]
+    md += [f"- {r}" for r in report["recommendations"]]
+    md += ["", "## Fuentes"] + [f"- {s}" for s in report["sources"]]
+    if audits:
+        md += ["", "## Auditoría del revisor crítico"] + audits
+    if human_log:
+        md += ["", "## Supervisión humana",
+               "Decisiones tomadas por la persona usuaria en cada pausa del flujo:", ""]
+        md += _human_log_lines(human_log)
+    return "\n".join(md) + "\n"
+
+
 def finalize(state: StudyState) -> dict:
-    """Fin del estudio. Se completará en el Hito 3 (exportar el informe)."""
-    return {"final": {}}
+    """La "automatización" que el usuario autoriza al aprobar el Hito 3: exportar el informe.
+
+    La fecha la pongo yo con datetime.now(): el LLM no sabe en qué día estamos
+    (en una prueba puso "abril 2024" a precios de octubre de 2026).
+    """
+    _emit({"event": "phase", "hito": 3, "phase": "finalizing",
+           "message": "Exportando el informe aprobado a outputs/…"})
+    now = datetime.now()
+    audits = state["hito_results"][3].get("audit", [])
+    human_log = state.get("human_log") or []
+    markdown = report_to_markdown(state["report"], audits, state["query"], now, human_log)
+
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    md_path = OUTPUT_DIR / f"informe_{stamp}.md"
+    json_path = OUTPUT_DIR / f"informe_{stamp}.json"
+    md_path.write_text(markdown, encoding="utf-8")
+    # El JSON guarda el estudio completo (los 3 hitos) por si alguien quiere revisar de dónde sale cada dato
+    json_path.write_text(json.dumps({
+        "query": state["query"], "date": now.isoformat(timespec="seconds"),
+        "report": state["report"], "validation": state.get("validation"),
+        "research": state.get("research"), "audit": audits,
+        "human_decisions": human_log,  # quién decidió qué y cuándo: la prueba del Human-in-the-Loop
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"final": {"markdown": markdown, "files": [str(md_path), str(json_path)]}}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

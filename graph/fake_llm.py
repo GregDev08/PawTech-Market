@@ -9,7 +9,7 @@ from typing import Callable, Optional, Type
 
 from pydantic import BaseModel
 
-from agents.schemas import PlanProposal
+from agents.schemas import MarketReportSchema, PlanProposal
 from graph.schemas import ResearchFindings
 
 DELAY = 0.4  # segundos por "paso" para que la interfaz tenga tiempo de mostrar el progreso
@@ -74,7 +74,24 @@ def fake_result(agent_key: str, description: str,
         })
         return RunResult(raw=findings.model_dump_json(), pydantic=findings)
 
+    if output_pydantic is MarketReportSchema:
+        report = MarketReportSchema(
+            title=f"[simulado] Estudio de mercado de pienso económico{tag}",
+            executive_summary="[simulado] El mercado combina marcas blancas de 1 kg y sacos grandes más baratos por kg.",
+            competitor_analysis="[simulado] Start! y Catxtreme compiten en formato pequeño; Salvaje gana en saco de 12 kg.",
+            price_distribution_summary="pendiente",
+            visual_insights="[simulado] Los claims 'sterilised' y 'grain-free' dominan el packaging.",
+            recommendations=["[simulado] Lanzar un formato de 7-12 kg por debajo de 3 €/kg.",
+                             "[simulado] Destacar el precio por kg en el envase."],
+            sources=[],
+        )
+        return RunResult(raw=report.model_dump_json(), pydantic=report)
+
     if output_pydantic is not None:
         raise NotImplementedError(f"FAKE_LLM aún no simula {output_pydantic.__name__}.")
+
+    if agent_key == "critical_reviewer":
+        return RunResult(raw="[simulado] Las cifras coinciden con las estadísticas del Hito 2 "
+                             f"y las fuentes están citadas{tag}.\nVeredicto: APROBADO")
 
     return RunResult(raw=f"[simulado] Resultado de {agent_key}{tag}.")
