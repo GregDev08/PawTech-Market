@@ -1,21 +1,32 @@
-"""Esquemasde la orquestación.
+"""Esquemas propios de la orquestación (complementan agents/schemas.py).
 
 agents/schemas.py define lo que el usuario aprueba en cada hito.
 Aquí definimos lo que pasa de un hito al siguiente.
 """
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class CompetitorEntry(BaseModel):
     """Un competidor encontrado en la investigación web."""
-    name: str = Field(..., description="Marca o tienda competidora")
-    product: str = Field(..., description="Producto o línea analizada")
+    name: str = Field(..., description="Marca competidora")
+    product: str = Field(..., description="Producto concreto analizado")
     price_eur: Optional[float] = Field(
-        None, description="Precio en euros si aparece en la fuente; null si no se conoce"
+        None, description="Precio total del producto en euros; null si no se conoce"
     )
-    source: Optional[str] = Field(None, description="URL o referencia de donde sale el dato")
+    size_kg: Optional[float] = Field(
+        None, description="Peso del saco/envase en kg (p. ej. 2, 6, 11.4, 12); null si no se conoce"
+    )
+    source: Optional[str] = Field(None, description="URL de donde sale el dato")
+
+    @computed_field
+    @property
+    def price_per_kg(self) -> Optional[float]:
+        """€/kg calculado por nosotros: es lo que permite comparar marcas entre sí."""
+        if self.price_eur and self.size_kg:
+            return round(self.price_eur / self.size_kg, 2)
+        return None
 
 
 class ResearchFindings(BaseModel):
