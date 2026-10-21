@@ -7,3 +7,6 @@ pydantic
 pytest
 python-dotenv
 mcp
+streamlit
+streamlit-option-menu
+websockets
