@@ -1,0 +1,40 @@
+propose_research_plan:
+  description: >
+    Analiza la solicitud de estudio de mercado para PawTech-Market (nicho de alimentos holísticos y gadgets para mascotas).
+    Descompón la investigación en una lista clara de subtareas específicas organizadas por categorías:
+    'Investigación Web', 'Análisis Cuantitativo' y 'Análisis Visual'.
+    Cada subtarea debe incluir un ID (ej. ST-01), título, descripción y categoría.
+  expected_output: >
+    Una propuesta estructurada bajo el esquema PlanProposal con la lista de subtareas desglosadas lista para la aprobación humana en el Frontend (Hito 1 HITL).
+  agent: market_researcher
+
+execute_data_analysis:
+  description: >
+    Ejecuta la herramienta de análisis de datos numéricos ('analyze_numeric_data_tool') para procesar los datos de precios y ventas recopilados.
+    Calcula estadísticas descriptivas exactas y genera métricas cuantitativas sin inventar cifras.
+  expected_output: >
+    Un resumen cuantitativo verificado para su validación en el Hito 2 HITL.
+  agent: data_analyst
+
+execute_visual_analysis:
+  description: >
+    Analiza las imágenes de packaging, etiquetas de ingredientes y capturas de webs de competidores de mascotas.
+    Extrae conclusiones clave sobre la calidad percibida y elementos visuales diferenciadores.
+  expected_output: >
+    Un informe de hallazgos visuales y análisis de packaging para el Hito 2 HITL.
+  agent: visual_analyst
+
+draft_final_report:
+  description: >
+    Sintetiza la información cualitativa, cuantitativa y visual validada en las fases anteriores.
+    Redacta un informe de mercado ejecutivo estructurado citando explícitamente todas las fuentes consultadas.
+  expected_output: >
+    Un informe completo bajo el esquema MarketReportSchema preparado para la aprobación final del usuario (Hito 3 HITL).
+  agent: strategic_writer
+
+review_and_audit_report:
+  description: >
+    Audita el informe borrador redactado. Verifica que cada afirmación numérica provenga del código Python ejecutable y que todas las fuentes estén debidamente citadas.
+  expected_output: >
+    El informe verificado y autorizado para su entrega final o recomendaciones de revisión.
+  agent: critical_reviewer
