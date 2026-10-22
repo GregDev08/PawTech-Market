@@ -1,3 +1,4 @@
+import json
 import os
 import yaml
 from pathlib import Path
@@ -9,7 +10,7 @@ from crewai.tools import tool
 # Cargar las variables del archivo .env
 load_dotenv()
 
-# Importar la función creada por la Persona 3 (MCP Lead)
+# Importar la función de análisis cuantitativo
 from tools.python_analysis import analyze_numeric_data as run_numeric_analysis
 
 # Cargar la configuración de los agentes desde YAML
@@ -18,13 +19,24 @@ CONFIG_PATH = Path(__file__).resolve().parent / "config" / "agents.yaml"
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     agents_config = yaml.safe_load(f)
 
-# Wrapper de la herramienta Python / MCP con el decorador nativo de CrewAI
-@tool("Analizador de Datos Numéricos PawTech")
-def analyze_numeric_data_tool(rows: list[dict[str, float]]) -> dict:
-    """Calcula estadísticas descriptivas de listas con datos numéricos (ventas, precios, unidades)."""
-    return run_numeric_analysis(rows)
+
+# Herramienta nativa de CrewAI (sin argumentos en el decorador para evitar TypeErrors)
+@tool
+def analyze_numeric_data_tool(rows_json: str) -> str:
+    """Calcula estadísticas descriptivas de listas con datos numéricos (ventas, precios, unidades) recibidos en formato de cadena JSON. Ejemplo: '[{"precio": 10.5, "unidades": 100}]'."""
+    try:
+        if isinstance(rows_json, str):
+            rows = json.loads(rows_json)
+        else:
+            rows = rows_json
+        
+        result = run_numeric_analysis(rows)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": f"Error al procesar los datos numéricos: {str(e)}"}, ensure_ascii=False)
 
 
+# Definición de Agentes
 def get_market_researcher(tools: Optional[List[Any]] = None) -> Agent:
     assigned_tools = tools if tools is not None else []
     return Agent(
@@ -34,24 +46,24 @@ def get_market_researcher(tools: Optional[List[Any]] = None) -> Agent:
         tools=assigned_tools,
         verbose=True,
         allow_delegation=True,
-        llm="gpt-4o-mini"
     )
+
 
 def get_data_analyst(extra_tools: Optional[List[Any]] = None) -> Agent:
     """Asigna automáticamente la herramienta de análisis cuantitativo al Analista de Datos."""
     assigned_tools = [analyze_numeric_data_tool]
     if extra_tools:
         assigned_tools.extend(extra_tools)
-        
+
     return Agent(
         role=agents_config["data_analyst"]["role"],
         goal=agents_config["data_analyst"]["goal"],
         backstory=agents_config["data_analyst"]["backstory"],
         tools=assigned_tools,
         verbose=True,
-        allow_delegation=False,
-        llm="gpt-4o-mini"
+        allow_delegation=True,
     )
+
 
 def get_visual_analyst(tools: Optional[List[Any]] = None) -> Agent:
     assigned_tools = tools if tools is not None else []
@@ -61,9 +73,9 @@ def get_visual_analyst(tools: Optional[List[Any]] = None) -> Agent:
         backstory=agents_config["visual_analyst"]["backstory"],
         tools=assigned_tools,
         verbose=True,
-        allow_delegation=False,
-        llm="gpt-4o"  # Visión multimodal habilitada
+        allow_delegation=True,
     )
+
 
 def get_strategic_writer(tools: Optional[List[Any]] = None) -> Agent:
     assigned_tools = tools if tools is not None else []
@@ -73,9 +85,9 @@ def get_strategic_writer(tools: Optional[List[Any]] = None) -> Agent:
         backstory=agents_config["strategic_writer"]["backstory"],
         tools=assigned_tools,
         verbose=True,
-        allow_delegation=False,
-        llm="gpt-4o-mini"
+        allow_delegation=True,
     )
+
 
 def get_critical_reviewer(tools: Optional[List[Any]] = None) -> Agent:
     assigned_tools = tools if tools is not None else []
@@ -86,5 +98,4 @@ def get_critical_reviewer(tools: Optional[List[Any]] = None) -> Agent:
         tools=assigned_tools,
         verbose=True,
         allow_delegation=True,
-        llm="gpt-4o-mini"
     )

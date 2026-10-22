@@ -30,32 +30,33 @@ class RunResult:
 
 
 def _create_agent(agent_key: str):
-    """Crea el agente de Vanesa, le pone el LLM de Groq y sus herramientas."""
     from agents import crew_agents
     from graph.web_search import web_search_tool
 
+    # Asignación de los tipos exactos que espera build_llm(): "light", "heavy" o "vision"
     if agent_key == "market_researcher":
         agent = crew_agents.get_market_researcher(tools=[web_search_tool])
+        model_type = "light"  # Usa el modelo rápido de menor consumo
     elif agent_key == "data_analyst":
         agent = crew_agents.get_data_analyst()
-        # Vanesa le asigna analyze_numeric_data_tool, pero en el grafo las estadísticas
-        # se calculan antes por MCP y se le pasan ya hechas (las cifras salen del código).
-        # Además Groq rechaza el esquema de esa herramienta (filas con columnas libres):
-        # "required present but properties is missing". Así que aquí se la quito.
-        agent.tools = []
+        model_type = "light"
     elif agent_key == "visual_analyst":
         agent = crew_agents.get_visual_analyst()
+        model_type = "vision" # Modelo multimodal para imágenes
     elif agent_key == "strategic_writer":
         agent = crew_agents.get_strategic_writer()
+        model_type = "light"
     elif agent_key == "critical_reviewer":
         agent = crew_agents.get_critical_reviewer()
+        model_type = "heavy"  # Modelo potente solo para auditar
     else:
         raise KeyError(f"Agente desconocido: {agent_key}")
 
-    agent.llm = build_llm("vision" if agent_key == "visual_analyst" else "text")
-    agent.allow_delegation = False  # quien reparte el trabajo es LangGraph, no CrewAI
-    agent.max_iter = 6              # como mucho 6 pasos (búsquedas + respuesta final)
-    agent.verbose = os.getenv("AGENT_VERBOSE") == "1"  # ver qué hace el agente cuando lo pedimos
+    # Llamamos a build_llm pasando exactamente "light", "heavy" o "vision"
+    agent.llm = build_llm(model_type)
+    agent.allow_delegation = False
+    agent.max_iter = 4  # Reducido para evitar bucles excesivos de tokens
+    agent.verbose = os.getenv("AGENT_VERBOSE") == "1"
     return agent
 
 
