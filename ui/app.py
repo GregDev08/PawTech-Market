@@ -364,7 +364,10 @@ def live_dashboard_fragment():
                             st.rerun()
 
         elif stage > hito_num:
-            st.info(f"✅ **{hito_title} completado y validado por el usuario.**")
+            st.success(f"✅ **{hito_title} completado y validado.**")
+            # Mostrar también el resultado consolidado del hito ya superado
+            with st.expander(f"Ver resultados y subtareas del Hito {hito_num}", expanded=False):
+                render_result(hito_num)
         else:
             st.markdown("*Paso bloqueado. Completa los hitos anteriores.*")
 

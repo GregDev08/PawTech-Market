@@ -13,7 +13,8 @@ import os
 from crewai import LLM
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-TEXT_MODEL = "openai/gpt-oss-120b"
+LIGHT_MODEL = "gpt-oss-20b"
+HEAVY_MODEL = "gpt-oss-120b"
 VISION_MODEL = "qwen/qwen3.8-27b"
 
 
@@ -25,8 +26,10 @@ def build_llm(kind: str = "text") -> LLM:
 
     if kind == "vision":
         model = os.getenv("VISION_LLM_MODEL", VISION_MODEL)
+    elif kind == "heavy":
+        model = os.getenv("HEAVY_LLM_MODEL", HEAVY_MODEL)
     else:
-        model = os.getenv("LLM_MODEL", TEXT_MODEL)
+        model = os.getenv("LLM_MODEL", LIGHT_MODEL)
 
     extra = {}
     if model.startswith("qwen/"):
