@@ -38,6 +38,11 @@ def _create_agent(agent_key: str):
         agent = crew_agents.get_market_researcher(tools=[web_search_tool])
     elif agent_key == "data_analyst":
         agent = crew_agents.get_data_analyst()
+        # Vanesa le asigna analyze_numeric_data_tool, pero en el grafo las estadísticas
+        # se calculan antes por MCP y se le pasan ya hechas (las cifras salen del código).
+        # Además Groq rechaza el esquema de esa herramienta (filas con columnas libres):
+        # "required present but properties is missing". Así que aquí se la quito.
+        agent.tools = []
     elif agent_key == "visual_analyst":
         agent = crew_agents.get_visual_analyst()
     elif agent_key == "strategic_writer":
