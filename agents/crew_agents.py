@@ -1,10 +1,13 @@
 import os
 import yaml
+import json
 from pathlib import Path
 from typing import Optional, List, Any
 from dotenv import load_dotenv
 from crewai import Agent
 from crewai.tools import tool
+from tools.python_analysis import analyze_numeric_data  # Import corregido
+
 
 # Cargar las variables del archivo .env
 load_dotenv()
@@ -20,8 +23,31 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
 
 # Wrapper de la herramienta Python / MCP con el decorador nativo de CrewAI
 @tool("Analizador de Datos Numéricos PawTech")
-def analyze_numeric_data_tool(rows: list[dict[str, float]]) -> dict:
-    """Calcula estadísticas descriptivas de listas con datos numéricos (ventas, precios, unidades)."""
+def analyze_numeric_data_tool(rows_json: str) -> dict:
+    """
+    Calcula estadísticas descriptivas de datos numéricos (ventas, precios, unidades).
+
+    rows_json debe ser una cadena JSON que contenga una lista
+    de objetos con columnas numéricas. Todas las filas deben
+    tener las mismas columnas.
+
+    Ejemplo:
+    '[{"ventas": 10}, {"ventas": 20}, {"ventas": 30}]'
+    """
+    try:
+        rows = json.loads(rows_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "rows_json debe contener un JSON válido."
+        ) from exc
+
+    if not isinstance(rows, list) or not all(
+        isinstance(row, dict) for row in rows
+    ):
+        raise ValueError(
+            "rows_json debe representar una lista de objetos."
+        )
+
     return run_numeric_analysis(rows)
 
 
