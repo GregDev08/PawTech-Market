@@ -235,3 +235,6 @@ __marimo__/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Informes generados por el grafo (se crean en cada ejecución)
+outputs/

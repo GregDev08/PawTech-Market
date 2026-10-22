@@ -1,0 +1,163 @@
+{
+  "query": "pienso barato para gatos españa",
+  "date": "2026-10-21T18:48:13",
+  "report": {
+    "title": "[simulado] Estudio de mercado de pienso económico",
+    "executive_summary": "[simulado] El mercado combina marcas blancas de 1 kg y sacos grandes más baratos por kg.",
+    "competitor_analysis": "[simulado] Start! y Catxtreme compiten en formato pequeño; Salvaje gana en saco de 12 kg.",
+    "price_distribution_summary": "Se analizaron 4 productos. Precio medio 4,37 €/kg (mediana 4,99 €/kg), con un rango de 2,08 a 5,43 €/kg y una desviación de 1,54 €/kg. El más económico es Salvaje Adult Base Sterilised (Tiendanimal) a 2,08 €/kg. Estadísticas calculadas vía mcp.",
+    "visual_insights": "[simulado] Los claims 'sterilised' y 'grain-free' dominan el packaging.",
+    "recommendations": [
+      "[simulado] Lanzar un formato de 7-12 kg por debajo de 3 €/kg.",
+      "[simulado] Destacar el precio por kg en el envase."
+    ],
+    "sources": [
+      "https://www.tiendanimal.es/start-adult-pollo-y-buey-pienso-para-gatos/KWK40948_M.html",
+      "https://www.tiendanimal.es/salvaje-adult-base-sterilised-pienso-para-gatos/SAB1244_M.html",
+      "https://www.idealo.es/lista/121601890/pienso-salvaje-gatos.html",
+      "https://www.carrefour.es/",
+      "https://www.zooplus.es/shop/tienda_gatos/ofertas_especiales_gatos/pienso"
+    ]
+  },
+  "validation": {
+    "quantitative_summary": {
+      "estadisticas": {
+        "via": "mcp",
+        "row_count": 4,
+        "columns": [
+          "precio_eur_kg"
+        ],
+        "summary": {
+          "precio_eur_kg": {
+            "count": 4.0,
+            "mean": 4.3725000000000005,
+            "std": 1.5423439953525284,
+            "min": 2.08,
+            "25%": 4.2625,
+            "50%": 4.99,
+            "75%": 5.1,
+            "max": 5.43
+          }
+        }
+      },
+      "interpretacion": "[simulado] Resultado de data_analyst."
+    },
+    "visual_findings": "No se aprobaron (o fallaron) las subtareas de análisis visual.",
+    "sources_found": [
+      "https://www.tiendanimal.es/start-adult-pollo-y-buey-pienso-para-gatos/KWK40948_M.html",
+      "https://www.tiendanimal.es/salvaje-adult-base-sterilised-pienso-para-gatos/SAB1244_M.html",
+      "https://www.idealo.es/lista/121601890/pienso-salvaje-gatos.html",
+      "https://www.carrefour.es/",
+      "https://www.zooplus.es/shop/tienda_gatos/ofertas_especiales_gatos/pienso"
+    ]
+  },
+  "research": {
+    "summary": "[simulado] Cuatro marcas de pienso económico en tiendas españolas.",
+    "competitors": [
+      {
+        "brand": "Start!",
+        "product": "Adult Pollo y Buey",
+        "store": "Tiendanimal",
+        "price_eur": 4.99,
+        "size_kg": 1.0,
+        "source": "https://www.tiendanimal.es/start-adult-pollo-y-buey-pienso-para-gatos/KWK40948_M.html",
+        "price_per_kg": 4.99
+      },
+      {
+        "brand": "Salvaje",
+        "product": "Adult Base Sterilised",
+        "store": "Tiendanimal",
+        "price_eur": 24.99,
+        "size_kg": 12.0,
+        "source": "https://www.tiendanimal.es/salvaje-adult-base-sterilised-pienso-para-gatos/SAB1244_M.html",
+        "price_per_kg": 2.08
+      },
+      {
+        "brand": "Catxtreme",
+        "product": "Sterilised Pollo y Buey",
+        "store": "Carrefour",
+        "price_eur": 4.99,
+        "size_kg": 1.0,
+        "source": "https://www.carrefour.es/",
+        "price_per_kg": 4.99
+      },
+      {
+        "brand": "Brit Care",
+        "product": "Grain-Free Sterilised Adult",
+        "store": "Zooplus",
+        "price_eur": 37.99,
+        "size_kg": 7.0,
+        "source": "https://www.zooplus.es/shop/tienda_gatos/ofertas_especiales_gatos/pienso",
+        "price_per_kg": 5.43
+      }
+    ],
+    "sources": [
+      "https://www.tiendanimal.es/start-adult-pollo-y-buey-pienso-para-gatos/KWK40948_M.html",
+      "https://www.tiendanimal.es/salvaje-adult-base-sterilised-pienso-para-gatos/SAB1244_M.html",
+      "https://www.idealo.es/lista/121601890/pienso-salvaje-gatos.html",
+      "https://www.carrefour.es/",
+      "https://www.zooplus.es/shop/tienda_gatos/ofertas_especiales_gatos/pienso"
+    ]
+  },
+  "audit": [],
+  "human_decisions": [
+    {
+      "hito": 1,
+      "attempt": 1,
+      "action": "approve_subtasks",
+      "approved": [
+        "Identificar las marcas principales"
+      ],
+      "rejected": [
+        "Comparar precios por kg entre tiendas",
+        "Revisar ofertas y suscripciones"
+      ],
+      "at": "2026-10-21T18:47:57"
+    },
+    {
+      "hito": 1,
+      "attempt": 1,
+      "action": "review",
+      "decision": "approve",
+      "at": "2026-10-21T18:48:00"
+    },
+    {
+      "hito": 2,
+      "attempt": 1,
+      "action": "approve_subtasks",
+      "approved": [
+        "Estadísticas de precios €/kg"
+      ],
+      "rejected": [
+        "Analizar el packaging de las marcas"
+      ],
+      "at": "2026-10-21T18:48:03"
+    },
+    {
+      "hito": 2,
+      "attempt": 1,
+      "action": "review",
+      "decision": "approve",
+      "at": "2026-10-21T18:48:07"
+    },
+    {
+      "hito": 3,
+      "attempt": 1,
+      "action": "approve_subtasks",
+      "approved": [
+        "Redactar el informe final"
+      ],
+      "rejected": [
+        "Auditar el informe"
+      ],
+      "at": "2026-10-21T18:48:10"
+    },
+    {
+      "hito": 3,
+      "attempt": 1,
+      "action": "review",
+      "decision": "approve",
+      "at": "2026-10-21T18:48:13"
+    }
+  ]
+}
