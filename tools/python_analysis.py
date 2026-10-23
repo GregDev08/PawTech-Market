@@ -115,12 +115,14 @@ def analyze_numeric_data(rows: list[dict[str, float]]) -> dict[str, Any]:
     summary: dict[str, dict[str, float | None]] = {}
 
     for column, statistics in raw_summary.items():
-        summary[column] = {}
+        col_str = str(column)
+        summary[col_str] = {}
 
         for metric, value in statistics.items():
+            metric_str = str(metric)
             number = float(value)
 
-            summary[column][metric] = (
+            summary[col_str][metric_str] = (
                 number if math.isfinite(number) else None
             )
 
@@ -128,7 +130,7 @@ def analyze_numeric_data(rows: list[dict[str, float]]) -> dict[str, Any]:
     validated_result = NumericAnalysisResult.model_validate(
         {
             "row_count": len(frame),
-            "columns": list(frame.columns),
+            "columns": [str(col) for col in frame.columns],
             "summary": summary,
         }
     )

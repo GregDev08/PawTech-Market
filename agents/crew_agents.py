@@ -1,11 +1,12 @@
 import json
 import os
-import yaml
 from pathlib import Path
-from typing import Optional, List, Any
-from dotenv import load_dotenv
+from typing import Any, List, Optional
+
+import yaml
 from crewai import Agent
 from crewai.tools import tool
+from dotenv import load_dotenv
 
 # Cargar las variables del archivo .env
 load_dotenv()
@@ -20,20 +21,26 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     agents_config = yaml.safe_load(f)
 
 
-# Herramienta nativa de CrewAI (sin argumentos en el decorador para evitar TypeErrors)
-@tool
+# Herramienta nativa de CrewAI con manejo robusto de cadenas JSON
+@tool("Analizador de Datos Numéricos PawTech")
 def analyze_numeric_data_tool(rows_json: str) -> str:
-    """Calcula estadísticas descriptivas de listas con datos numéricos (ventas, precios, unidades) recibidos en formato de cadena JSON. Ejemplo: '[{"precio": 10.5, "unidades": 100}]'."""
+    """Calcula estadísticas descriptivas de datos numéricos (ventas, precios, unidades) recibidos en formato de cadena JSON.
+
+    Ejemplo: '[{"precio": 10.5, "unidades": 100}]'
+    """
     try:
         if isinstance(rows_json, str):
             rows = json.loads(rows_json)
         else:
             rows = rows_json
-        
+
         result = run_numeric_analysis(rows)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
-        return json.dumps({"error": f"Error al procesar los datos numéricos: {str(e)}"}, ensure_ascii=False)
+        return json.dumps(
+            {"error": f"Error al procesar los datos numéricos: {str(e)}"},
+            ensure_ascii=False,
+        )
 
 
 # Definición de Agentes
