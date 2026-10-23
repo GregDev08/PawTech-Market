@@ -24,7 +24,7 @@ import websockets
 from graph.session import StudySession
 
 # Importar tu logger existente (asegúrate de que logger.py esté accesible en el path)
-import logger  # noqa: F401
+import logger.logger   
 
 HOST, PORT = "localhost", 8765
 CLIENTS: set = set()
