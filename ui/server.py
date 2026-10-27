@@ -11,10 +11,13 @@ import logging
 from pathlib import Path
 import sys
 
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+
+from graph.voice_utils import audio_to_text, text_to_audio
 from dotenv import load_dotenv
 
 load_dotenv(ROOT_DIR / ".env")
@@ -101,6 +104,18 @@ def dispatch(session: StudySession, data: dict) -> None:
             data.get("decision", ""),
             data.get("feedback", ""),
         )
+    elif action == "SUBMIT_VOICE_QUERY":
+        audio_bytes = data.get("audio_bytes") # O procesar archivo temporal
+        # Guardamos temporalmente el audio recibido para transcribirlo
+        temp_audio = OUTPUTS_DIR / "temp_input.wav"
+        temp_audio.write_bytes(bytes(audio_bytes))
+
+        # Transcribimos con faster-whisper
+        transcribed_text = audio_to_text(str(temp_audio))
+        logging.info(f"Voz transcribida a texto: {transcribed_text}")
+
+        # Arrancamos la sesión con el texto obtenido
+        session.start(transcribed_text)
     elif action == "RETRY":
         session.retry()
     elif action == "RESET":

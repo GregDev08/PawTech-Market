@@ -10,3 +10,5 @@ mcp
 streamlit
 streamlit-option-menu
 websockets
+faster-whisper
+edge-tts
