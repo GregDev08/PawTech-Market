@@ -156,6 +156,7 @@ st.markdown("---")
 # ==========================================
 st.subheader("💡 Petición de Investigación (Hito 1 - Inicialización)")
 
+# 1. El cuadro de texto va primero
 user_input = st.text_area(
     "¿Qué deseas que investiguen los agentes?",
     value=st.session_state.user_query,
@@ -164,10 +165,34 @@ user_input = st.text_area(
     disabled=(sess().get("phase") != "idle")
 )
 
+# 2. Opciones de voz y botón de envío unificadas cuando está en fase 'idle'
 if sess().get("phase") == "idle":
+    st.markdown("---")
+    st.write("🎙️ **O si lo prefieres, graba una nota de voz:**")
+    audio_value = st.audio_input("Graba tu consulta")
+
+    if audio_value is not None:
+        # Guardamos temporalmente el audio grabado para transcribirlo
+        temp_audio_path = Path("outputs/temp_query.wav")
+        temp_audio_path.parent.mkdir(exist_ok=True)
+        temp_audio_path.write_bytes(audio_value.read())
+        
+        # Llamamos a faster-whisper para convertir la voz en texto
+        try:
+            from graph.voice_utils import audio_to_text
+            transcribed_text = audio_to_text(str(temp_audio_path))
+            
+            if transcribed_text and transcribed_text != st.session_state.user_query:
+                st.session_state.user_query = transcribed_text
+                st.success(f"🎙️ Voz transcrita con éxito: '{transcribed_text}'")
+                st.rerun() # Recarga para que el texto aparezca automáticamente en el st.text_area
+        except Exception as e:
+            st.error(f"Error al transcribir el audio: {e}")
+
+    # 3. Único botón de envío al final de las opciones
     if st.button("🚀 Enviar Petición al Investigador"):
         if not user_input.strip():
-            st.warning("Por favor, introduce una consulta válida.")
+            st.warning("Por favor, introduce una consulta válida o graba un audio.")
         else:
             st.session_state.user_query = user_input
             logging.info(f"UI: Usuario envió consulta de investigación -> {user_input}")
@@ -182,8 +207,19 @@ def render_result(hito_num):
     r = result_of(hito_num)
     if not r:
         return
+
+    # Clave de sesión única para mantener el audio visible en este hito
+    audio_session_key = f"audio_bytes_hito_{hito_num}"
+    if audio_session_key not in st.session_state:
+        st.session_state[audio_session_key] = None
+
+    texto_para_voz = ""
+
+    # 1. HITO 1: INVESTIGACIÓN
     if r["kind"] == "research":
         st.write(r["summary"])
+        texto_para_voz = r["summary"]
+
         rows = [{"Marca": c["brand"], "Producto": c["product"], "Tienda": c.get("store"),
                  "Precio (€)": c.get("price_eur"), "Tamaño (kg)": c.get("size_kg"),
                  "€/kg": c.get("price_per_kg")} for c in r["competitors"]]
@@ -194,6 +230,7 @@ def render_result(hito_num):
             st.success(f"Más barato por kg: **{c['brand']} {c['product']}** ({c.get('store')}) → {c['price_per_kg']} €/kg")
         st.caption(f"Precios comparables: {r['comparable_prices']} · duplicados quitados: {r['duplicates_removed']}")
 
+    # 2. HITO 2: VALIDACIÓN CUANTITATIVA Y VISUAL
     elif r["kind"] == "validation":
         stats = r["quantitative_summary"]["estadisticas"]
         s = (stats.get("summary") or {}).get("precio_eur_kg")
@@ -204,13 +241,20 @@ def render_result(hito_num):
             c3.metric("Máximo", f"{s['max']:.2f}")
             c4.metric("Desviación", "—" if s["std"] is None else f"{s['std']:.2f}")
             st.caption(f"Calculado vía {stats.get('via')} con {stats.get('row_count')} precios")
+            
+            # Texto preparado para el audio del Hito 2
+            interpretacion = r['quantitative_summary'].get('interpretacion', '')
+            texto_para_voz = f"Validación cuantitativa del Hito 2. La media de precios es de {s['mean']:.2f} euros por kilo. {interpretacion}"
         else:
             st.warning(stats.get("aviso", "Sin estadísticas."))
+            texto_para_voz = "Validación del Hito 2 completada sin estadísticas suficientes."
+            
         with st.expander("Interpretación cuantitativa"):
             st.write(r["quantitative_summary"].get("interpretacion") or "—")
         with st.expander("Hallazgos visuales"):
             st.write(r["visual_findings"])
 
+    # 3. HITO 3: INFORME Y AUDITORÍA
     elif r["kind"] == "report":
         rep = r["report"]
         st.markdown(f"#### {rep['title']}")
@@ -224,6 +268,39 @@ def render_result(hito_num):
         (st.success if verdict == "APROBADO" else st.warning)(f"Veredicto del revisor crítico: {verdict}")
         st.caption("Si apruebas, autorizas la exportación del informe a outputs/.")
 
+        # Texto preparado para el audio del Hito 3
+        texto_para_voz = f"Informe final: {rep['title']}. {rep['executive_summary']}"
+
+    # ==========================================
+    # 🔊 SECCIÓN DE AUDIO (DISPONIBLE PARA TODOS LOS HITOS)
+    # ==========================================
+    if texto_para_voz:
+        col_btn, _ = st.columns([1, 2])
+        with col_btn:
+            if st.button("🔊 Escuchar resumen en voz alta", key=f"tts_h{hito_num}"):
+                with st.spinner("Generando audio con Edge-TTS..."):
+                    audio_output_path = Path(f"outputs/resumen_hito_{hito_num}.mp3")
+                    audio_output_path.parent.mkdir(exist_ok=True)
+                    
+                    try:
+                        from graph.voice_utils import text_to_audio
+                    except ImportError:
+                        from graph.voice_utils import generate_tts_file as text_to_audio
+                    
+                    # Generamos el archivo de audio
+                    text_to_audio(texto_para_voz, str(audio_output_path))
+                    
+                    # Si existe, leemos los bytes y los guardamos en la sesión
+                    if audio_output_path.exists():
+                        st.session_state[audio_session_key] = audio_output_path.read_bytes()
+                    else:
+                        st.error("No se pudo generar el archivo de audio.")
+
+        # Si ya hay audio en la sesión para este hito, mostramos el reproductor fijo
+        if st.session_state[audio_session_key] is not None:
+            st.audio(st.session_state[audio_session_key], format="audio/mp3")
+
+    # Control de errores en subtareas
     for t in r.get("subtasks", []):
         if t.get("status") == "failed":
             st.error(f"{t['id']} falló: {t.get('error')}")
@@ -357,6 +434,33 @@ def live_dashboard_fragment():
 
         final = sess().get("final") or {}
         final_md = final.get("markdown") or f"# Estudio de Mercado: {st.session_state.user_query}\n"
+
+        if "audio_final_generado" not in st.session_state:
+            st.session_state.audio_final_generado = False
+        # 🔊 Botón para escuchar el resumen ejecutivo final
+        if st.button("🔊 Escuchar Informe Final en Voz"):
+            with st.spinner("Sintetizando voz del informe..."):
+                audio_output_path = Path("outputs/informe_final.mp3")
+                from graph.voice_utils import text_to_speech_file
+                
+                # Cogemos las primeras frases del resumen ejecutivo para que no sea eterno
+                rep_data = sess().get("results", {}).get("3", {}).get("report", {})
+                texto_a_leer = rep_data.get("executive_summary", "Estudio de mercado completado con éxito.")
+
+                text_to_speech_file(texto_a_leer, str(audio_output_path))
+                
+                if audio_output_path.exists():
+                    st.session_state.audio_final_generado = True
+                    st.success("¡Audio generado con éxito!")
+                else:
+                    st.error("No se pudo generar el archivo de audio.")
+
+        # 3. Si ya se generó, mostramos el reproductor SIEMPRE (fuera del botón)
+        if st.session_state.audio_final_generado:
+            audio_output_path = Path("outputs/informe_final.mp3")
+            if audio_output_path.exists():
+                audio_bytes = audio_output_path.read_bytes()
+                st.audio(audio_bytes, format="audio/mp3")
 
         st.download_button(
             label="📥 Descargar Informe Final (.md)",
