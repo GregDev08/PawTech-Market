@@ -138,13 +138,15 @@ def fetch_state():
                     s = st.session_state.session
                     st.session_state.current_stage = 4 if s.get("phase") == "done" else s.get("current_hito", 1)
                     st.session_state.user_query = s.get("query") or st.session_state.user_query
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("Error al obtener el estado por WebSocket: %s", e, exc_info=True)
+            st.error(f"No se pudo conectar con el servidor WebSocket: {e}")
 
     try:
         asyncio.run(_listen())
-    except RuntimeError:
-        pass
+    except RuntimeError as e:
+        logging.error("No se pudo ejecutar el listener WebSocket: %s", e, exc_info=True)
+        st.error(f"No se pudo consultar el estado del servidor WebSocket: {e}")
 
 
 fetch_state()
