@@ -378,8 +378,8 @@ ui/                     Interfaz Streamlit y servidor WebSocket
 ## Preparar el entorno
 
 El README del proyecto recomienda Python 3.10 o superior.
-La compatibilidad debe comprobarse con las versiones de las dependencias
-instaladas.
+El archivo `.python-version` fija Python 3.12.10, la versión usada para
+validar el proyecto y compatible con las dependencias actuales.
 
 Desde la raíz del repositorio:
 
