@@ -23,6 +23,7 @@ except FileNotFoundError:
     WS_TOKEN = os.getenv("PAWTECH_WS_TOKEN", "")
 WS_URL = os.getenv("PAWTECH_WS_URL", WS_URL)
 WS_TOKEN = os.getenv("PAWTECH_WS_TOKEN", WS_TOKEN)
+WS_OPEN_TIMEOUT = 60
 
 # Configuración de página con estética clásica
 st.set_page_config(
@@ -106,7 +107,9 @@ if "session" not in st.session_state:
 def send_ws_payload(action, payload):
     async def _send():
         try:
-            async with websockets.connect(WS_URL) as websocket:
+            async with websockets.connect(
+                WS_URL, open_timeout=WS_OPEN_TIMEOUT
+            ) as websocket:
                 if WS_TOKEN:
                     await websocket.send(json.dumps({"token": WS_TOKEN}))
                 await websocket.recv()
@@ -140,7 +143,9 @@ def attempt_of(hito_num):
 def fetch_state():
     async def _listen():
         try:
-            async with websockets.connect(WS_URL) as websocket:
+            async with websockets.connect(
+                WS_URL, open_timeout=WS_OPEN_TIMEOUT
+            ) as websocket:
                 if WS_TOKEN:
                     await websocket.send(json.dumps({"token": WS_TOKEN}))
                 msg = await websocket.recv()
