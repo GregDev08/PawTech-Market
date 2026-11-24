@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime
 import json
 import logging
+import os
 from pathlib import Path
 import sys
 
@@ -29,7 +30,8 @@ from graph.session import StudySession
 # Importar tu logger existente (asegúrate de que logger.py esté accesible en el path)
 import logger.logger   
 
-HOST, PORT = "localhost", 8765
+HOST = os.getenv("HOST", "localhost")
+PORT = int(os.getenv("PORT", "8765"))
 CLIENTS: set = set()
 
 # Directorios de salida definidos de forma consistente

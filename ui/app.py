@@ -10,9 +10,16 @@ import asyncio
 import websockets
 import json
 import logging
+import os
 
 # Importar el logger para registrar la actividad de la interfaz en logs
 import logger.logger  
+
+try:
+    WS_URL = st.secrets.get("PAWTECH_WS_URL", "ws://localhost:8765")
+except FileNotFoundError:
+    WS_URL = os.getenv("PAWTECH_WS_URL", "ws://localhost:8765")
+WS_URL = os.getenv("PAWTECH_WS_URL", WS_URL)
 
 # Configuración de página con estética clásica
 st.set_page_config(
@@ -96,7 +103,7 @@ if "session" not in st.session_state:
 def send_ws_payload(action, payload):
     async def _send():
         try:
-            async with websockets.connect("ws://localhost:8765") as websocket:
+            async with websockets.connect(WS_URL) as websocket:
                 await websocket.recv()
                 payload["action"] = action
                 await websocket.send(json.dumps(payload))
@@ -128,7 +135,7 @@ def attempt_of(hito_num):
 def fetch_state():
     async def _listen():
         try:
-            async with websockets.connect("ws://localhost:8765") as websocket:
+            async with websockets.connect(WS_URL) as websocket:
                 msg = await websocket.recv()
                 data = json.loads(msg)
                 if data.get("type") == "STATE_UPDATE":
