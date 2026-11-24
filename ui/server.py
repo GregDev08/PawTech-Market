@@ -6,6 +6,7 @@ ejecuta el grafo LangGraph de verdad, y reenvío a la interfaz el estado real.
 """
 import asyncio
 from datetime import datetime
+import hmac
 import json
 import logging
 import os
@@ -32,6 +33,9 @@ import logger.logger
 
 HOST = os.getenv("HOST", "localhost")
 PORT = int(os.getenv("PORT", "8765"))
+WS_TOKEN = os.getenv("PAWTECH_WS_TOKEN")
+if HOST not in {"localhost", "127.0.0.1", "::1"} and not WS_TOKEN:
+    raise RuntimeError("PAWTECH_WS_TOKEN es obligatorio si el servidor escucha en una interfaz pública.")
 CLIENTS: set = set()
 
 # Directorios de salida definidos de forma consistente
@@ -128,6 +132,25 @@ def dispatch(session: StudySession, data: dict) -> None:
 
 def make_handler(session: StudySession):
     async def handle_client(websocket):
+        if WS_TOKEN:
+            try:
+                auth_message = await asyncio.wait_for(websocket.recv(), timeout=10)
+                auth_data = json.loads(auth_message)
+            except (asyncio.TimeoutError, json.JSONDecodeError):
+                await websocket.close(code=1008, reason="Autenticación requerida")
+                return
+
+            provided_token = (
+                auth_data.get("token") if isinstance(auth_data, dict) else None
+            )
+            if (
+                not isinstance(provided_token, str)
+                or not hmac.compare_digest(provided_token, WS_TOKEN)
+            ):
+                await websocket.send(json.dumps({"type": "ERROR", "message": "No autorizado"}))
+                await websocket.close(code=1008, reason="No autorizado")
+                return
+
         CLIENTS.add(websocket)
         try:
             await websocket.send(_state_message(session.snapshot()))

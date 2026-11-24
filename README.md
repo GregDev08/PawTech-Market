@@ -474,11 +474,14 @@ streamlit run ui/app.py
 
 La interfaz y el servidor WebSocket deben desplegarse como servicios separados.
 En el servicio del backend, configura `HOST=0.0.0.0`, `PORT` (el puerto asignado
-por la plataforma) y `GROQ_API_KEY` como variables de entorno. En los secretos
-de Streamlit Community Cloud, configura la URL segura del backend:
+por la plataforma), `PAWTECH_WS_TOKEN` y `GROQ_API_KEY` como variables de
+entorno. El backend exige un token si escucha en una interfaz pública. Usa el
+mismo valor aleatorio para `PAWTECH_WS_TOKEN` en los secretos de Streamlit
+Community Cloud, junto con la URL segura del backend:
 
 ```toml
 PAWTECH_WS_URL = "wss://<url-publica-del-backend>"
+PAWTECH_WS_TOKEN = "<token-aleatorio-compartido>"
 ```
 
 No subas `.env` ni claves API al repositorio. La interfaz mantiene

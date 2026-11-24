@@ -17,9 +17,12 @@ import logger.logger
 
 try:
     WS_URL = st.secrets.get("PAWTECH_WS_URL", "ws://localhost:8765")
+    WS_TOKEN = st.secrets.get("PAWTECH_WS_TOKEN", "")
 except FileNotFoundError:
     WS_URL = os.getenv("PAWTECH_WS_URL", "ws://localhost:8765")
+    WS_TOKEN = os.getenv("PAWTECH_WS_TOKEN", "")
 WS_URL = os.getenv("PAWTECH_WS_URL", WS_URL)
+WS_TOKEN = os.getenv("PAWTECH_WS_TOKEN", WS_TOKEN)
 
 # Configuración de página con estética clásica
 st.set_page_config(
@@ -104,6 +107,8 @@ def send_ws_payload(action, payload):
     async def _send():
         try:
             async with websockets.connect(WS_URL) as websocket:
+                if WS_TOKEN:
+                    await websocket.send(json.dumps({"token": WS_TOKEN}))
                 await websocket.recv()
                 payload["action"] = action
                 await websocket.send(json.dumps(payload))
@@ -136,6 +141,8 @@ def fetch_state():
     async def _listen():
         try:
             async with websockets.connect(WS_URL) as websocket:
+                if WS_TOKEN:
+                    await websocket.send(json.dumps({"token": WS_TOKEN}))
                 msg = await websocket.recv()
                 data = json.loads(msg)
                 if data.get("type") == "STATE_UPDATE":
