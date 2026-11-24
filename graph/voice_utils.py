@@ -1,5 +1,7 @@
 # graph/voice_utils.py
 import asyncio
+from typing import Optional
+
 from faster_whisper import WhisperModel
 import edge_tts
 
@@ -12,12 +14,14 @@ def _patched_av_open(*args, **kwargs):
 av.open = _patched_av_open
 # -------------------------------------
 
-# Inicializamos el modelo de Whisper una sola vez
-stt_model = WhisperModel("base", device="cpu", compute_type="int8")
+stt_model: Optional[WhisperModel] = None
 VOICE = "es-ES-AlvaroNeural"  # O "es-MX-DaliaNeural" para acento latino
 
 def audio_to_text(audio_path: str) -> str:
     """Convierte la nota de voz del usuario en texto usando faster-whisper."""
+    global stt_model
+    if stt_model is None:
+        stt_model = WhisperModel("base", device="cpu", compute_type="int8")
     segments, _ = stt_model.transcribe(audio_path, language="es")
     text = " ".join([segment.text for segment in segments])
     return text.strip()

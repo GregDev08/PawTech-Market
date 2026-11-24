@@ -378,8 +378,8 @@ ui/                     Interfaz Streamlit y servidor WebSocket
 ## Preparar el entorno
 
 El README del proyecto recomienda Python 3.10 o superior.
-La compatibilidad debe comprobarse con las versiones de las dependencias
-instaladas.
+El archivo `.python-version` fija Python 3.12.10, la versión usada para
+validar el proyecto y compatible con las dependencias actuales.
 
 Desde la raíz del repositorio:
 
@@ -469,6 +469,23 @@ En otra terminal:
 ```bash
 streamlit run ui/app.py
 ```
+
+### Despliegue en Streamlit Community Cloud
+
+La interfaz y el servidor WebSocket deben desplegarse como servicios separados.
+En el servicio del backend, configura `HOST=0.0.0.0`, `PORT` (el puerto asignado
+por la plataforma), `PAWTECH_WS_TOKEN` y `GROQ_API_KEY` como variables de
+entorno. El backend exige un token si escucha en una interfaz pública. Usa el
+mismo valor aleatorio para `PAWTECH_WS_TOKEN` en los secretos de Streamlit
+Community Cloud, junto con la URL segura del backend:
+
+```toml
+PAWTECH_WS_URL = "wss://<url-publica-del-backend>"
+PAWTECH_WS_TOKEN = "<token-aleatorio-compartido>"
+```
+
+No subas `.env` ni claves API al repositorio. La interfaz mantiene
+`ws://localhost:8765` como valor predeterminado para desarrollo local.
 
 ### Recorrer el flujo desde terminal
 
